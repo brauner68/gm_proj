@@ -1,6 +1,7 @@
 torch
 torchvision
 torchaudio
+torchcodec
 matplotlib
 numpy
 librosa
