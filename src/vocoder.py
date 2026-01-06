@@ -6,11 +6,11 @@ import os
 
 
 class Vocoder:
-    def __init__(self, device='cpu', n_mels=64):
+    def __init__(self, device='cpu', n_mels=64, hop_length=512):
         self.device = device
         self.sample_rate = 16000
         self.n_fft = 1024
-        self.hop_length = 512
+        self.hop_length = hop_length
         self.n_mels = n_mels  # Must match dataset.py
         self.amp = 8.0
 
