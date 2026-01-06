@@ -6,12 +6,12 @@ import os
 
 
 class Vocoder:
-    def __init__(self, device='cpu', n_mels=64):
+    def __init__(self, device='cpu'):
         self.device = device
         self.sample_rate = 16000
         self.n_fft = 1024
         self.hop_length = 512
-        self.n_mels = n_mels  # Must match dataset.py
+        self.n_mels = 64  # Must match dataset.py
 
         # 1. Inverse Mel Transform: (Mel -> Linear Spectrogram)
         # We need to recover the linear frequencies from the Mel bands.
@@ -29,7 +29,7 @@ class Vocoder:
             n_fft=self.n_fft,
             hop_length=self.hop_length,
             power=1.0,  # We will feed it Magnitude, not Power
-            n_iter=128  # More iterations = better quality, slower
+            n_iter=32  # More iterations = better quality, slower
         ).to(device)
 
     def decode(self, mel_spectrogram):
@@ -60,7 +60,7 @@ class Vocoder:
         # Log-mels are usually roughly in range -10 to 5.
         # We multiply by a gain factor to restore dynamic range before exp.
         # 5.0 to 10.0 is a safe heuristic for audible volume.
-        spec = spec * 1.0
+        spec = spec * 8.0
 
         # 3. Inverse Log (Exp)
         spec = torch.exp(spec)
