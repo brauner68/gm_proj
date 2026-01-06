@@ -6,12 +6,12 @@ import os
 
 
 class Vocoder:
-    def __init__(self, device='cpu'):
+    def __init__(self, device='cpu', n_mels=64):
         self.device = device
         self.sample_rate = 16000
         self.n_fft = 1024
         self.hop_length = 512
-        self.n_mels = 64  # Must match dataset.py
+        self.n_mels = n_mels  # Must match dataset.py
         self.amp = 8.0
 
         # 1. Inverse Mel Transform: (Mel -> Linear Spectrogram)
