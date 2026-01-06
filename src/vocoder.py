@@ -88,3 +88,63 @@ class Vocoder:
 
         sf.write(path, wav_numpy, self.sample_rate)
         print(f"Saved audio to {path}")
+
+
+# Make sure to install: pip install bigvgan
+try:
+    import bigvgan
+except ImportError:
+    print("⚠️ BigVGAN not found. Please run: pip install bigvgan")
+
+
+class BigVGAN_Vocoder:
+    def __init__(self, device='cpu'):
+        self.device = device
+        print("⏳ Loading BigVGAN (Universal 22kHz)...")
+
+        # Auto-download the model from Hugging Face
+        self.model = bigvgan.BigVGAN.from_pretrained(
+            'nvidia/bigvgan_v2_22khz_80band_256x',
+            use_cuda_kernel=False
+        ).to(self.device)
+
+        self.model.remove_weight_norm()
+        self.model.eval()
+        print("✅ BigVGAN Loaded.")
+
+    @torch.no_grad()
+    def decode(self, mel_spectrogram):
+        """
+        Args:
+            mel_spectrogram: [Batch, 1, 80, Time] - Values in [-1, 1]
+        Returns:
+            audio: [Batch, 1, Time]
+        """
+        spec = mel_spectrogram.to(self.device)
+
+        # 1. Shape Check: Needs to be [Batch, 80, Time]
+        if spec.dim() == 4:
+            spec = spec.squeeze(1)  # Remove channel dim [B, 1, 80, T] -> [B, 80, T]
+        if spec.dim() == 2:
+            spec = spec.unsqueeze(0)  # Add batch dim [80, T] -> [1, 80, T]
+
+        # 2. Denormalize (Crucial Step)
+        # The Diffusion model outputs [-1, 1].
+        # BigVGAN expects raw log-mel values (roughly -11 to +4).
+        # We assume the user normalized nicely, so we stretch it back.
+        # Heuristic: Mult by 6 to get range 12, shift down by 4.
+        # Result range: approx -10 to +2
+        spec = (spec * 6.0) - 4.0
+
+        # 3. Generate Audio
+        audio = self.model(spec)
+
+        return audio  # Returns [Batch, 1, Time]
+
+    def save_audio(self, waveform, path):
+        import soundfile as sf
+        wav_numpy = waveform.squeeze().cpu().numpy()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        # Note: BigVGAN is 22050Hz!
+        sf.write(path, wav_numpy, 22050)
+        print(f"Saved audio to {path}")

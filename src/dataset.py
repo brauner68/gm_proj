@@ -117,3 +117,109 @@ class NSynthDataset(Dataset):
             image = torch.ones_like(image) * -1
 
         return image, label
+
+
+
+
+class BigVGAN_NSynthDataset(Dataset):
+    def __init__(self, data_path, target_size=(80, 256), max_samples=None, selected_families=None):
+        """
+        Specialized Dataset for BigVGAN (22kHz, 80 Mels, 256 Hop).
+        target_size: (Height=80, Width=256)
+        """
+        self.data_path = data_path
+
+        # --- BIGVGAN REQUIREMENTS ---
+        self.sample_rate = 22050  # Must match the vocoder
+        self.n_mels = 80  # Must be 80
+        self.hop_length = 256  # Must be 256
+        self.n_fft = 1024  # Must be 1024
+
+        # 1. Setup Map & Files (Same logic as before)
+        self.label_map = self._create_label_map(selected_families)
+        self.files = self._load_and_filter_files(data_path, max_samples)
+
+        if len(self.files) == 0:
+            raise RuntimeError(f"No files found in {data_path}")
+
+        print(f"BigVGAN Dataset: {len(self.files)} files. Target SR: {self.sample_rate}Hz")
+
+        # 2. Define Transforms
+        # A. Resampler (NSynth is 16k, we need 22k)
+        self.resampler = T.Resample(orig_freq=16000, new_freq=self.sample_rate)
+
+        # B. Mel Spectrogram (Exact BigVGAN parameters)
+        self.mel_transform = T.MelSpectrogram(
+            sample_rate=self.sample_rate,
+            n_fft=self.n_fft,
+            hop_length=self.hop_length,
+            n_mels=self.n_mels,
+            f_min=0,
+            f_max=8000,  # Matches BigVGAN training config
+            center=False
+        )
+
+        # C. Resize to fixed width (Time)
+        self.resize_transform = VT.Resize(target_size)
+
+    # --- Reuse your existing helper methods ---
+    def _create_label_map(self, selected_families):
+        if selected_families: return {name: i for i, name in enumerate(selected_families)}
+        return {name: i for i, name in enumerate(
+            ['bass', 'brass', 'flute', 'guitar', 'keyboard', 'mallet', 'organ', 'reed', 'string', 'synth_lead',
+             'vocal'])}
+
+    def _get_instrument_from_path(self, path):
+        filename = os.path.basename(path)
+        parts = filename.split('_')
+        if len(parts) > 1 and parts[0] == 'synth' and parts[1] == 'lead': return "synth_lead"
+        return parts[0]
+
+    def _load_and_filter_files(self, data_path, max_samples):
+        all_files = glob.glob(os.path.join(data_path, 'audio', '*.wav'))
+        if not all_files: all_files = glob.glob(os.path.join(data_path, 'nsynth-valid', 'audio', '*.wav'))
+        valid_files = [p for p in all_files if self._get_instrument_from_path(p) in self.label_map]
+        if max_samples: valid_files = valid_files[:max_samples]
+        return valid_files
+
+    def __len__(self):
+        return len(self.files)
+
+    def __getitem__(self, idx):
+        path = self.files[idx]
+
+        # 1. Load Audio
+        try:
+            waveform, sr = torchaudio.load(path)
+        except Exception:
+            import soundfile as sf
+            audio_data, sr = sf.read(path)
+            waveform = torch.from_numpy(audio_data).float()
+            if waveform.ndim == 1: waveform = waveform.unsqueeze(0)
+
+        # 2. RESAMPLE to 22050Hz
+        # (This is the slow part, but necessary for BigVGAN)
+        if sr != self.sample_rate:
+            waveform = self.resampler(waveform)
+
+        # 3. Get Label
+        instrument_name = self._get_instrument_from_path(path)
+        label = torch.tensor(self.label_map[instrument_name], dtype=torch.long)
+
+        # 4. Mel Spectrogram
+        spec = self.mel_transform(waveform)
+        spec = torch.log(spec + 1e-9)
+
+        # 5. Resize
+        image = self.resize_transform(spec)
+
+        # 6. Normalize to [-1, 1] for Diffusion
+        min_val = image.min()
+        max_val = image.max()
+        if (max_val - min_val) > 1.0:
+            image = (image - min_val) / (max_val - min_val + 1e-5)
+            image = image * 2 - 1
+        else:
+            image = torch.zeros_like(image)
+
+        return image, label
