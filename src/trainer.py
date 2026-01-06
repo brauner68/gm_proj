@@ -25,7 +25,8 @@ class DiffusionTrainer:
         self.dataset = NSynthDataset(
             data_path=args['data_path'],
             target_size=(64, 64),
-            selected_families=args['selected_families']
+            selected_families=args['selected_families'],
+            max_samples=args['max_samples']
         )
         self.dataloader = DataLoader(
             self.dataset,
