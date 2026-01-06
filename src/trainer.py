@@ -57,6 +57,8 @@ class DiffusionTrainer:
         # 6. Optimizer
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=args['lr'])
 
+        self.loss_history = []
+
         print(f"Trainer Initialized on {self.device}")
         print(f"Classes: {self.dataset.label_map}")
         print(f"Model will handle {self.num_classes + 1} embeddings (Index {self.null_class} is NULL)")
@@ -109,11 +111,28 @@ class DiffusionTrainer:
 
             avg_loss = epoch_loss / len(self.dataloader)
             print(f"Average Epoch Loss: {avg_loss:.4f}")
+            self.loss_history.append(avg_loss)
 
             # Save Checkpoint
             if (epoch + 1) % self.args['save_interval'] == 0:
                 self.save_checkpoint(epoch)
                 self.evaluate(epoch)  # Generate sample images
+
+    def plot_loss_curve(self):
+        """Plots the training loss curve and saves it."""
+        plt.figure(figsize=(10, 5))
+        plt.plot(self.loss_history, label='Training Loss')
+        plt.title('Training Loss per Epoch')
+        plt.xlabel('Epoch')
+        plt.ylabel('MSE Loss')
+        plt.grid(True)
+        plt.legend()
+
+        # Save to the output directory
+        save_path = os.path.join(self.args['output_dir'], "loss_curve.png")
+        plt.savefig(save_path)
+        plt.close()  # Close memory to prevent leaks
+        print(f"Saved loss graph to {save_path}")
 
     def save_checkpoint(self, epoch):
         path = os.path.join(self.args['output_dir'], f"checkpoint_epoch_{epoch}.pt")
