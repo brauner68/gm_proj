@@ -12,7 +12,7 @@ class Vocoder:
         self.n_fft = 1024
         self.hop_length = 512
         self.n_mels = 64  # Must match dataset.py
-        self.amp = 1.0
+        self.amp = 8.0
 
         # 1. Inverse Mel Transform: (Mel -> Linear Spectrogram)
         # We need to recover the linear frequencies from the Mel bands.
@@ -30,7 +30,7 @@ class Vocoder:
             n_fft=self.n_fft,
             hop_length=self.hop_length,
             power=1.0,  # We will feed it Magnitude, not Power
-            n_iter=32  # More iterations = better quality, slower
+            n_iter=128  # More iterations = better quality, slower
         ).to(device)
 
     def decode(self, mel_spectrogram):
