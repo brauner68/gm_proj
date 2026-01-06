@@ -12,6 +12,7 @@ class Vocoder:
         self.n_fft = 1024
         self.hop_length = 512
         self.n_mels = 64  # Must match dataset.py
+        self.amp = 1.0
 
         # 1. Inverse Mel Transform: (Mel -> Linear Spectrogram)
         # We need to recover the linear frequencies from the Mel bands.
@@ -60,7 +61,7 @@ class Vocoder:
         # Log-mels are usually roughly in range -10 to 5.
         # We multiply by a gain factor to restore dynamic range before exp.
         # 5.0 to 10.0 is a safe heuristic for audible volume.
-        spec = spec * 8.0
+        spec = spec * self.amp
 
         # 3. Inverse Log (Exp)
         spec = torch.exp(spec)
