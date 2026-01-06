@@ -183,27 +183,16 @@ class DiffusionTrainer:
         # Reverse map to get string names
         int_to_name = {v: k for k, v in self.dataset.label_map.items()}
 
-        im = None
-
         for i, ax in enumerate(axes):
             # Image is [1, 64, 64], remove channel dim
             img = images[i].squeeze().numpy()
 
             # Flip Y axis (Spectrograms usually have low freq at bottom)
-            im = ax.imshow(img, origin='lower', cmap='inferno')
+            ax.imshow(img, origin='lower', cmap='inferno')
 
             label_name = int_to_name[labels[i].item()]
             ax.set_title(f"{label_name}")
             ax.axis('off')
-
-        # ---- ADD COLORBAR ----
-        cbar = fig.colorbar(
-            im,
-            ax=axes,
-            fraction=0.046,
-            pad=0.04
-        )
-        cbar.set_label("Magnitude", rotation=270, labelpad=12)
 
         plt.tight_layout()
         save_path = os.path.join(self.args['output_dir'], f"sample_epoch_{epoch}.png")
