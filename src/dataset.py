@@ -116,13 +116,13 @@ class NSynthDataset(Dataset):
         spec = torch.log(spec + 1e-9)
 
         # Normalize
-        min_val = image.min()
-        max_val = image.max()
+        min_val = spec.min()
+        max_val = spec.max()
         if (max_val - min_val) > 1.0:
-            image = (image - min_val) / (max_val - min_val + 1e-5)
+            image = (spec - min_val) / (max_val - min_val + 1e-5)
             image = image * 2 - 1
         else:
-            image = torch.ones_like(image) * -1
+            image = torch.ones_like(spec) * -1
 
         return image, label
 
