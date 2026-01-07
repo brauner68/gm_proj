@@ -8,13 +8,15 @@ from torch.utils.data import Dataset
 
 
 class NSynthDataset(Dataset):
-    def __init__(self, data_path, target_size=(64, 64), max_samples=None, selected_families=None):
+    def __init__(self, data_path, target_size=(64, 64), hop_length=512, max_samples=None, selected_families=None):
         """
         Args:
             selected_families (list[str]): e.g. ['guitar', 'brass']. If None, uses all 11.
         """
         self.data_path = data_path
         self.target_size = target_size
+        self.hop_length = hop_length
+        self.target_samples = hop_length * target_size[1]
         self.sample_rate = 16000
 
         # 1. Setup the Map (Dynamic Re-mapping)
@@ -31,9 +33,8 @@ class NSynthDataset(Dataset):
 
         # 3. Define Transforms
         self.mel_transform = T.MelSpectrogram(
-            sample_rate=self.sample_rate, n_fft=1024, hop_length=512, n_mels=target_size[0]
+            sample_rate=self.sample_rate, n_fft=1024, hop_length=hop_length, n_mels=target_size[0]
         )
-        self.resize_transform = VT.Resize(target_size)
 
     def _create_label_map(self, selected_families):
         """
@@ -103,9 +104,16 @@ class NSynthDataset(Dataset):
         label = torch.tensor(label_int, dtype=torch.long)
 
         # --- Process Image ---
+        # Crop to fit the net
+        if waveform.shape[1] > self.target_samples:
+            waveform = waveform[:, :self.target_samples]
+        else:
+            # Fallback: if file is too short (rare), pad it
+            pad_amt = self.target_samples - waveform.shape[1]
+            import torch.nn.functional as F
+            waveform = F.pad(waveform, (0, pad_amt))
         spec = self.mel_transform(waveform)
         spec = torch.log(spec + 1e-9)
-        image = self.resize_transform(spec)
 
         # Normalize
         min_val = image.min()
