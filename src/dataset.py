@@ -226,8 +226,13 @@ class BigVGAN_NSynthDataset(Dataset):
 
         # 6. NORMALIZE WITH FIXED CONSTANTS
         # Map [-12, 2] to [-1, 1]
-        spec = (spec - self.min_db) / (self.max_db - self.min_db)  # [0, 1]
-        spec = spec * 2 - 1  # [-1, 1]
+        #spec = (spec - self.min_db) / (self.max_db - self.min_db)  # [0, 1]
+        #spec = spec * 2 - 1  # [-1, 1]
+
+        min_val = spec.min()
+        max_val = spec.max()
+        spec = (spec - min_val) / (max_val - min_val + 1e-5)
+        spec = spec * 2 - 1
 
         # Clamp just in case
         spec = torch.clamp(spec, -1, 1)
