@@ -147,6 +147,7 @@ class BigVGAN_NSynthDataset(Dataset):
         # 2. Define Transforms
         # A. Resampler (NSynth is 16k, we need 22k)
         self.resampler = T.Resample(orig_freq=16000, new_freq=self.sample_rate)
+        self.target_samples = 40960
 
         # B. Mel Spectrogram (Exact BigVGAN parameters)
         self.mel_transform = T.MelSpectrogram(
@@ -156,7 +157,8 @@ class BigVGAN_NSynthDataset(Dataset):
             n_mels=self.n_mels,
             f_min=0,
             f_max= None,
-            center=True
+            center=False,
+            power=1.0,
         )
 
         # C. Resize to fixed width (Time)
@@ -204,6 +206,15 @@ class BigVGAN_NSynthDataset(Dataset):
         # (This is the slow part, but necessary for BigVGAN)
         if sr != self.sample_rate:
             waveform = self.resampler(waveform)
+
+        # Crop to fit the net
+        if waveform.shape[1] > self.target_samples:
+            waveform = waveform[:, :self.target_samples]
+        else:
+            # Fallback: if file is too short (rare), pad it
+            pad_amt = self.target_samples - waveform.shape[1]
+            import torch.nn.functional as F
+            waveform = F.pad(waveform, (0, pad_amt))
 
         # 3. Get Label
         instrument_name = self._get_instrument_from_path(path)
