@@ -155,8 +155,8 @@ class BigVGAN_NSynthDataset(Dataset):
             hop_length=self.hop_length,
             n_mels=self.n_mels,
             f_min=0,
-            f_max= 11025,
-            center=False
+            f_max= None,
+            center=True
         )
 
         # C. Resize to fixed width (Time)
