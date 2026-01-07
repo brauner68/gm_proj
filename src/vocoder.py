@@ -110,6 +110,10 @@ class BigVGAN_Vocoder:
 
         self.model.remove_weight_norm()
         self.model.eval()
+
+        self.min_db = -12.0
+        self.max_db = 2.0
+
         print("✅ BigVGAN Loaded.")
 
     @torch.no_grad()
@@ -128,13 +132,12 @@ class BigVGAN_Vocoder:
         if spec.dim() == 2:
             spec = spec.unsqueeze(0)  # Add batch dim [80, T] -> [1, 80, T]
 
-        # 2. Denormalize (Crucial Step)
-        # The Diffusion model outputs [-1, 1].
-        # BigVGAN expects raw log-mel values (roughly -11 to +4).
-        # We assume the user normalized nicely, so we stretch it back.
-        # Heuristic: Mult by 6 to get range 12, shift down by 4.
-        # Result range: approx -10 to +2
-        spec = (spec * 6.0) - 4.0
+        # 2. Denormalize
+        # Input: [-1, 1]
+        # 1. Map to [0, 1]
+        spec = (spec + 1) / 2.0
+        # 2. Map to [min_db, max_db]
+        spec = spec * (self.max_db - self.min_db) + self.min_db
 
         # 3. Generate Audio
         audio = self.model(spec)

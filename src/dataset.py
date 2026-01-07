@@ -162,6 +162,9 @@ class BigVGAN_NSynthDataset(Dataset):
         # C. Resize to fixed width (Time)
         self.resize_transform = VT.Resize(target_size)
 
+        self.min_db = -12.0
+        self.max_db = 2.0
+
     # --- Reuse your existing helper methods ---
     def _create_label_map(self, selected_families):
         if selected_families: return {name: i for i, name in enumerate(selected_families)}
@@ -213,13 +216,12 @@ class BigVGAN_NSynthDataset(Dataset):
         # 5. Resize
         image = self.resize_transform(spec)
 
-        # 6. Normalize to [-1, 1] for Diffusion
-        min_val = image.min()
-        max_val = image.max()
-        if (max_val - min_val) > 1.0:
-            image = (image - min_val) / (max_val - min_val + 1e-5)
-            image = image * 2 - 1
-        else:
-            image = torch.zeros_like(image)
+        # 6. NORMALIZE WITH FIXED CONSTANTS
+        # Map [-12, 2] to [-1, 1]
+        image = (image - self.min_db) / (self.max_db - self.min_db)  # [0, 1]
+        image = image * 2 - 1  # [-1, 1]
+
+        # Clamp just in case
+        image = torch.clamp(image, -1, 1)
 
         return image, label
