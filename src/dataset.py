@@ -224,15 +224,12 @@ class BigVGAN_NSynthDataset(Dataset):
         spec = self.mel_transform(waveform)
         spec = torch.log(torch.clamp(spec, min=1e-5))  # Log scale
 
-        # 5. Resize
-        image = self.resize_transform(spec)
-
         # 6. NORMALIZE WITH FIXED CONSTANTS
         # Map [-12, 2] to [-1, 1]
-        image = (image - self.min_db) / (self.max_db - self.min_db)  # [0, 1]
-        image = image * 2 - 1  # [-1, 1]
+        spec = (spec - self.min_db) / (self.max_db - self.min_db)  # [0, 1]
+        spec = spec * 2 - 1  # [-1, 1]
 
         # Clamp just in case
-        image = torch.clamp(image, -1, 1)
+        spec = torch.clamp(spec, -1, 1)
 
-        return image, label
+        return spec, label
