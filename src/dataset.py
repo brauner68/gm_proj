@@ -155,7 +155,7 @@ class BigVGAN_NSynthDataset(Dataset):
             hop_length=self.hop_length,
             n_mels=self.n_mels,
             f_min=0,
-            f_max=8000,  # Matches BigVGAN training config
+            f_max= 11025,
             center=False
         )
 
@@ -208,7 +208,7 @@ class BigVGAN_NSynthDataset(Dataset):
 
         # 4. Mel Spectrogram
         spec = self.mel_transform(waveform)
-        spec = torch.log(spec + 1e-9)
+        spec = torch.log(torch.clamp(spec, min=1e-5))  # Log scale
 
         # 5. Resize
         image = self.resize_transform(spec)
