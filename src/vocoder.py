@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torch
 import torchaudio
 import torchaudio.transforms as T
@@ -12,7 +14,6 @@ class Vocoder:
         self.n_fft = 1024
         self.hop_length = hop_length
         self.n_mels = n_mels  # Must match dataset.py
-        self.amp = 8.0
 
         # 1. Inverse Mel Transform: (Mel -> Linear Spectrogram)
         # We need to recover the linear frequencies from the Mel bands.
@@ -30,7 +31,7 @@ class Vocoder:
             n_fft=self.n_fft,
             hop_length=self.hop_length,
             power=1.0,  # We will feed it Magnitude, not Power
-            n_iter=128  # More iterations = better quality, slower
+            n_iter=32  # More iterations = better quality, slower
         ).to(device)
 
     def decode(self, mel_spectrogram):
@@ -58,10 +59,9 @@ class Vocoder:
         spec = (spec + 1) / 2.0
 
         # 2. Scale up (Heuristic)
-        # Log-mels are usually roughly in range -10 to 5.
+        # Log-mels are usually roughly in range -6 to 6.
         # We multiply by a gain factor to restore dynamic range before exp.
-        # 5.0 to 10.0 is a safe heuristic for audible volume.
-        spec = spec * self.amp
+        spec = spec * 12 - 6.0
 
         # 3. Inverse Log (Exp)
         spec = torch.exp(spec)
@@ -90,12 +90,10 @@ class Vocoder:
         print(f"Saved audio to {path}")
 
 
-# Make sure to install: pip install bigvgan
-try:
-    import bigvgan
-except ImportError:
-    print("⚠️ BigVGAN not found. Please run: pip install bigvgan")
 
+import bigvgan
+from bigvgan.meldataset import get_mel_spectrogram
+import librosa
 
 class BigVGAN_Vocoder:
     def __init__(self, device='cpu'):
@@ -104,50 +102,36 @@ class BigVGAN_Vocoder:
 
         # Auto-download the model from Hugging Face
         self.model = bigvgan.BigVGAN.from_pretrained(
-            'nvidia/bigvgan_v2_22khz_80band_256x',
-            use_cuda_kernel=False
+            'nvidia/bigvgan_v2_22khz_80band_fmax8k_256x',
+            use_cuda_kernel=False,
         ).to(self.device)
 
         self.model.remove_weight_norm()
         self.model.eval()
-
-        self.min_db = -12.0
-        self.max_db = 2.0
-
         print("✅ BigVGAN Loaded.")
 
-    @torch.no_grad()
+    @torch.inference_mode()
+    def encode(self, wav_path, T_target=None):
+        wav, sr = librosa.load(wav_path, sr=self.model.h.sampling_rate,
+                               mono=True)  # wav is np.ndarray with shape [T_time] and values in [-1, 1]
+        if T_target is not None:
+            N = T_target * self.model.h.hop_size
+            wav = wav[:N]
+        wav = torch.FloatTensor(wav).unsqueeze(0)  # wav is FloatTensor with shape [B(1), T_time]
+        wav = torch.clamp(wav, -1.0,1.0).to(self.device)
+        mel = get_mel_spectrogram(wav, self.model.h).to(self.device)  # mel is FloatTensor with shape [B(1), C_mel, T_frame]
+        return mel
+
+    @torch.inference_mode()
     def decode(self, mel_spectrogram):
-        """
-        Args:
-            mel_spectrogram: [Batch, 1, 80, Time] - Values in [-1, 1]
-        Returns:
-            audio: [Batch, 1, Time]
-        """
-        spec = mel_spectrogram.to(self.device)
-
-        # 1. Shape Check: Needs to be [Batch, 80, Time]
-        if spec.dim() == 4:
-            spec = spec.squeeze(1)  # Remove channel dim [B, 1, 80, T] -> [B, 80, T]
-        if spec.dim() == 2:
-            spec = spec.unsqueeze(0)  # Add batch dim [80, T] -> [1, 80, T]
-
-        # 2. Denormalize
-        # Input: [-1, 1]
-        # 1. Map to [0, 1]
-        spec = (spec + 1) / 2.0
-        # 2. Map to [min_db, max_db]
-        spec = spec * (self.max_db - self.min_db) + self.min_db
-
-        # 3. Generate Audio
-        audio = self.model(spec)
-
-        return audio  # Returns [Batch, 1, Time]
+        mel = mel_spectrogram.to(self.device)
+        wav_gen = self.model(mel)  # wav_gen is FloatTensor with shape [B(1), 1, T_time] and values in [-1, 1]
+        wav_gen = wav_gen.squeeze(0).cpu() # wav_gen is FloatTensor with shape [1, T_time]
+        return wav_gen  # Returns [1, T_time]
 
     def save_audio(self, waveform, path):
         import soundfile as sf
         wav_numpy = waveform.squeeze().cpu().numpy()
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        # Note: BigVGAN is 22050Hz!
         sf.write(path, wav_numpy, 22050)
         print(f"Saved audio to {path}")

@@ -6,6 +6,8 @@ import os
 import glob
 from torch.utils.data import Dataset
 
+from src.vocoder import BigVGAN_Vocoder
+
 
 class NSynthDataset(Dataset):
     def __init__(self, data_path, target_size=(64, 64), hop_length=512, max_samples=None, selected_families=None):
@@ -127,21 +129,12 @@ class NSynthDataset(Dataset):
         return spec, label
 
 
-
-
 class BigVGAN_NSynthDataset(Dataset):
-    def __init__(self, data_path, target_size=(80, 256), max_samples=None, selected_families=None):
+    def __init__(self, data_path, T_target=160, max_samples=None, selected_families=None):
         """
         Specialized Dataset for BigVGAN (22kHz, 80 Mels, 256 Hop).
-        target_size: (Height=80, Width=256)
         """
         self.data_path = data_path
-
-        # --- BIGVGAN REQUIREMENTS ---
-        self.sample_rate = 22050  # Must match the vocoder
-        self.n_mels = 80  # Must be 80
-        self.hop_length = 256  # Must be 256
-        self.n_fft = 1024  # Must be 1024
 
         # 1. Setup Map & Files (Same logic as before)
         self.label_map = self._create_label_map(selected_families)
@@ -150,30 +143,11 @@ class BigVGAN_NSynthDataset(Dataset):
         if len(self.files) == 0:
             raise RuntimeError(f"No files found in {data_path}")
 
-        print(f"BigVGAN Dataset: {len(self.files)} files. Target SR: {self.sample_rate}Hz")
+        print(f"BigVGAN NSynth Dataset: {len(self.files)} files")
 
-        # 2. Define Transforms
-        # A. Resampler (NSynth is 16k, we need 22k)
-        self.resampler = T.Resample(orig_freq=16000, new_freq=self.sample_rate)
-        self.target_samples = 40960
-
-        # B. Mel Spectrogram (Exact BigVGAN parameters)
-        self.mel_transform = T.MelSpectrogram(
-            sample_rate=self.sample_rate,
-            n_fft=self.n_fft,
-            hop_length=self.hop_length,
-            n_mels=self.n_mels,
-            f_min=0,
-            f_max= None,
-            center=False,
-            power=1.0,
-        )
-
-        # C. Resize to fixed width (Time)
-        self.resize_transform = VT.Resize(target_size)
-
-        self.min_db = -12.0
-        self.max_db = 2.0
+        # Load BigVGAN vocoder class
+        self.vocoder = BigVGAN_Vocoder(device='cpu')
+        self.T_target = T_target # width of mel spec
 
     # --- Reuse your existing helper methods ---
     def _create_label_map(self, selected_families):
@@ -201,48 +175,11 @@ class BigVGAN_NSynthDataset(Dataset):
     def __getitem__(self, idx):
         path = self.files[idx]
 
-        # 1. Load Audio
-        try:
-            waveform, sr = torchaudio.load(path)
-        except Exception:
-            import soundfile as sf
-            audio_data, sr = sf.read(path)
-            waveform = torch.from_numpy(audio_data).float()
-            if waveform.ndim == 1: waveform = waveform.unsqueeze(0)
-
-        # 2. RESAMPLE to 22050Hz
-        # (This is the slow part, but necessary for BigVGAN)
-        if sr != self.sample_rate:
-            waveform = self.resampler(waveform)
-
-        # Crop to fit the net
-        if waveform.shape[1] > self.target_samples:
-            waveform = waveform[:, :self.target_samples]
-        else:
-            # Fallback: if file is too short (rare), pad it
-            pad_amt = self.target_samples - waveform.shape[1]
-            import torch.nn.functional as F
-            waveform = F.pad(waveform, (0, pad_amt))
-
-        # 3. Get Label
+        # Get Label
         instrument_name = self._get_instrument_from_path(path)
         label = torch.tensor(self.label_map[instrument_name], dtype=torch.long)
 
-        # 4. Mel Spectrogram
-        spec = self.mel_transform(waveform)
-        spec = torch.log(torch.clamp(spec, min=1e-5))  # Log scale
-
-        # 6. NORMALIZE WITH FIXED CONSTANTS
-        # Map [-12, 2] to [-1, 1]
-        #spec = (spec - self.min_db) / (self.max_db - self.min_db)  # [0, 1]
-        #spec = spec * 2 - 1  # [-1, 1]
-
-        min_val = spec.min()
-        max_val = spec.max()
-        spec = (spec - min_val) / (max_val - min_val + 1e-5)
-        spec = spec * 2 - 1
-
-        # Clamp just in case
-        spec = torch.clamp(spec, -1, 1)
+        # Get spectrogram
+        spec = self.vocoder.encode(path, self.T_target).squeeze(0)  # [80, T]
 
         return spec, label
