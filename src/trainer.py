@@ -81,8 +81,6 @@ class DiffusionTrainer:
             for images, labels in progress_bar:
                 images = images.to(self.device)
                 labels = labels.to(self.device)
-                if epoch == 0:
-                    print(images.shape)  # (B, 1, 80, T)  # TODO ----------------------------
 
                 # --- A. Sample Noise ---
                 noise = torch.randn_like(images)

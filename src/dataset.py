@@ -180,6 +180,6 @@ class BigVGAN_NSynthDataset(Dataset):
         label = torch.tensor(self.label_map[instrument_name], dtype=torch.long)
 
         # Get spectrogram
-        spec = self.vocoder.encode(path, self.T_target).squeeze(0)  # [80, T]
+        spec = self.vocoder.encode(path, self.T_target) # [1, 80, T]
 
         return spec, label
