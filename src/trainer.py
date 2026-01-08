@@ -33,7 +33,9 @@ class DiffusionTrainer:
             self.dataset,
             batch_size=args['batch_size'],
             shuffle=True,
-            num_workers=2
+            num_workers=2,
+            persistent_workers=True, 
+            pin_memory=True
         )
 
         # 3. Define Labels & CFG
