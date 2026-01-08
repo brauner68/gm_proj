@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Import your modules
-from src.dataset import NSynthDataset
+from src.dataset import NSynthDataset, BigVGAN_NSynthDataset
 from src.model import TimeConditionedUnet, ConcatConditionedUnet
 
 
@@ -22,12 +22,13 @@ class DiffusionTrainer:
 
         # 2. Prepare Data
         # We add 1 to num_classes later for the "Null/Unconditional" token
-        self.dataset = NSynthDataset(
+        self.dataset =  BigVGAN_NSynthDataset(
             data_path=args['data_path'],
-            target_size=(64, 64),
+            T_target=args['T_target'],
+            max_samples=args['max_samples'],
             selected_families=args['selected_families'],
-            max_samples=args['max_samples']
         )
+
         self.dataloader = DataLoader(
             self.dataset,
             batch_size=args['batch_size'],
@@ -43,7 +44,8 @@ class DiffusionTrainer:
 
         # 4. Initialize Model (Using the modern TimeConditioned version)
         self.model = TimeConditionedUnet(
-            num_classes=self.num_classes + 1  # +1 for null token
+            num_classes=self.num_classes + 1,  # +1 for null token
+            T=args['T_target'],
         ).to(self.device)
 
         # 5. Scheduler (The Diffusion Magic)
@@ -62,6 +64,11 @@ class DiffusionTrainer:
         print(f"Trainer Initialized on {self.device}")
         print(f"Classes: {self.dataset.label_map}")
         print(f"Model will handle {self.num_classes + 1} embeddings (Index {self.null_class} is NULL)")
+
+        # Evaluate
+        self.evaluation = True
+        self.plot_eval = True
+        self.gen_audio_eval = False
 
     def train(self):
         self.model.train()
@@ -116,7 +123,8 @@ class DiffusionTrainer:
             # Save Checkpoint
             if (epoch + 1) % self.args['save_interval'] == 0:
                 self.save_checkpoint(epoch)
-                self.evaluate(epoch)  # Generate sample images
+                if self.evaluation:
+                    self.evaluate(epoch)  # Generate sample images
 
     def plot_loss_curve(self):
         """Plots the training loss curve and saves it."""
@@ -153,9 +161,9 @@ class DiffusionTrainer:
         num_samples = len(labels)
 
         # Start from pure random noise
-        # Shape: [Num_Classes, 1, 64, 64]
+        # Shape: [Num_Classes, 1, 80, T]
         latents = torch.randn(
-            (num_samples, 1, 64, 64),
+            (num_samples, 1, 80, self.args['T_target']),
             device=self.device
         )
 
@@ -171,7 +179,9 @@ class DiffusionTrainer:
             latents = self.noise_scheduler.step(noise_pred, t, latents).prev_sample
 
         # Save the result as a plot
-        self.plot_results(latents.cpu(), labels.cpu(), epoch)
+        if self.plot_eval:
+            self.plot_results(latents.cpu(), labels.cpu(), epoch)
+
         self.model.train()  # Switch back to train mode
 
     def plot_results(self, images, labels, epoch):
@@ -199,3 +209,5 @@ class DiffusionTrainer:
         plt.savefig(save_path)
         plt.close()
         print(f"Saved validation plot to {save_path}")
+
+

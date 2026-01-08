@@ -68,12 +68,11 @@ class ConcatConditionedUnet(nn.Module):
 
 
 class TimeConditionedUnet(nn.Module):
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, T):
         super().__init__()
-
         # Note: No manual Embedding layer needed!
         self.model = UNet2DModel(
-            sample_size=64,
+            sample_size=(80,T),
             in_channels=1,
             out_channels=1,
             layers_per_block=2,
