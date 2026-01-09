@@ -124,14 +124,22 @@ class BigVGAN_Vocoder:
 
     @torch.inference_mode()
     def decode(self, mel_spectrogram):
+        """
+        Input: Spectrogram Batch [Batch, 80, T]
+        Output: Audio Batch [Batch, 1, T_audio]
+        """
         mel = mel_spectrogram.to(self.device)
-        wav_gen = self.model(mel)  # wav_gen is FloatTensor with shape [B(1), 1, T_time] and values in [-1, 1]
-        wav_gen = wav_gen.squeeze(0).cpu() # wav_gen is FloatTensor with shape [1, T_time]
-        return wav_gen  # Returns [1, T_time]
+        wav_gen = self.model(mel)
+        return wav_gen.cpu()
 
     def save_audio(self, waveform, path):
+        """
+        Input: Single waveform tensor [1, T] or [T]
+        """
         import soundfile as sf
+        # Ensure it's on CPU and squeeze channel/batch dims for saving
         wav_numpy = waveform.squeeze().cpu().numpy()
+
         os.makedirs(os.path.dirname(path), exist_ok=True)
         sf.write(path, wav_numpy, 22050)
         print(f"Saved audio to {path}")

@@ -34,7 +34,7 @@ class DiffusionTrainer:
             batch_size=args['batch_size'],
             shuffle=True,
             num_workers=2,
-            persistent_workers=True, 
+            persistent_workers=True,
             pin_memory=True
         )
 
@@ -52,10 +52,10 @@ class DiffusionTrainer:
 
         # 5. Scheduler (The Diffusion Magic)
         self.noise_scheduler = DDPMScheduler(
-            num_train_timesteps=1000,
-            beta_start=0.0001,
-            beta_end=0.02,
-            beta_schedule="linear"
+            num_train_timesteps=args['num_train_timesteps'],
+            beta_start=args['beta_start'],
+            beta_end=args['beta_end'],
+            beta_schedule=args['beta_schedule'],
         )
 
         # 6. Optimizer
