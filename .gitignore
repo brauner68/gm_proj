@@ -5,4 +5,4 @@ data/
 *.egg-info/
 /results
 /src/__pycache__/
-/notebooks/
+notebooks/
