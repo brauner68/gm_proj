@@ -76,6 +76,9 @@ class DiffusionGenerator:
         print(f"🎹 Generating {samples_per_class} samples per class...")
         print(f"📂 Output: {save_dir}")
 
+        # Dictionary to store results: {'guitar': [wav1, wav2], 'flute': ...}
+        results = {}
+
         for instrument_name, label_idx in self.label_map.items():
 
             # --- 1. Prepare Batch ---
@@ -107,6 +110,8 @@ class DiffusionGenerator:
             audio_batch = self.vocoder.decode(specs_batch)
 
             # --- 4. Save Individually ---
+            # Store in results dict
+            results[instrument_name] = []
             for i in range(samples_per_class):
                 filename = f"{instrument_name}_{i + 1}.wav"
                 path = os.path.join(save_dir, filename)
@@ -114,4 +119,8 @@ class DiffusionGenerator:
                 # Pass single item [1, T_audio] to save
                 self.vocoder.save_audio(audio_batch[i], path)
 
+                # Add to results (keep on CPU for display)
+                results[instrument_name].append(audio_batch[i].cpu())
+
         print("✨ Generation Complete!")
+        return results
