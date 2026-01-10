@@ -80,7 +80,7 @@ class DiffusionTrainer:
             progress_bar = tqdm(self.dataloader, leave=False)
             epoch_loss = 0
 
-            for images, labels in progress_bar:
+            for images, labels, _ in progress_bar:
                 images = images.to(self.device)
                 labels = labels.to(self.device)
 
