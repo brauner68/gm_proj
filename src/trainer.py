@@ -145,7 +145,7 @@ class DiffusionTrainer:
         print(f"Saved loss graph to {save_path}")
 
     def save_checkpoint(self, epoch):
-        path = os.path.join(self.args['output_dir'], f"checkpoint_epoch_{epoch}.pt")
+        path = os.path.join(self.args['output_dir'], f"checkpoint_epoch_{epoch+1}.pt")
         torch.save(self.model.state_dict(), path)
         print(f"Saved model to {path}")
 
@@ -207,7 +207,7 @@ class DiffusionTrainer:
             ax.axis('off')
 
         plt.tight_layout()
-        save_path = os.path.join(self.args['output_dir'], f"sample_epoch_{epoch}.png")
+        save_path = os.path.join(self.args['output_dir'], f"sample_epoch_{epoch+1}.png")
         plt.savefig(save_path)
         plt.close()
         print(f"Saved validation plot to {save_path}")
