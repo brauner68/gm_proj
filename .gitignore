@@ -4,3 +4,4 @@ checkpoints/
 data/
 *.egg-info/
 /results
+/src/__pycache__/
