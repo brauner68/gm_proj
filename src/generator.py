@@ -4,7 +4,7 @@ from diffusers import DDPMScheduler
 from tqdm.auto import tqdm
 
 # Import your modules
-from src.model import TimeConditionedUnet
+from src.model import TimeConditionedUnet, ConcatConditionedUnet
 from src.vocoder import BigVGAN_Vocoder
 
 
@@ -30,10 +30,16 @@ class DiffusionGenerator:
 
         # 3. Initialize Model
         # Add 1 for the 'null' token
-        self.model = TimeConditionedUnet(
-            num_classes=self.num_classes + 1,
-            T=config['T_target']
-        ).to(self.device)
+        if self.config['conditioning'] == 'time':
+            self.model = TimeConditionedUnet(
+                num_classes=self.num_classes + 1,
+                T=config['T_target']
+            ).to(self.device)
+        else:
+            self.model = ConcatConditionedUnet(
+                num_classes=self.num_classes + 1,
+                T=config['T_target'],
+            ).to(self.device)
 
         # 4. Load Weights
         self._load_checkpoint()

@@ -4,7 +4,7 @@ from diffusers import UNet2DModel
 
 
 class ConcatConditionedUnet(nn.Module):
-    def __init__(self, num_classes, class_emb_size=32):
+    def __init__(self, num_classes, T, class_emb_size=32):
         """
         Args:
             num_classes (int): Total number of instrument classes (plus 1 for null/unconditional if you use CFG).
@@ -19,7 +19,7 @@ class ConcatConditionedUnet(nn.Module):
         # 2. The Core UNet Model
         # We use a deeper configuration than the example to handle 64x64 audio details.
         self.model = UNet2DModel(
-            sample_size=64,  # Target: 64x64 spectrograms
+            sample_size=(80,T),
             in_channels=1 + class_emb_size,  # 1 (Audio) + Embedding Size
             out_channels=1,  # Output: 1 Channel (Spectrogram)
             layers_per_block=2,  # 2 ResNet layers per block (Standard)

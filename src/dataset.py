@@ -135,8 +135,6 @@ class BigVGAN_NSynthDataset(Dataset):
         Specialized Dataset for BigVGAN (22kHz, 80 Mels, 256 Hop).
         """
         self.data_path = data_path
-
-        # 1. Setup Map & Files (Same logic as before)
         self.label_map = self._create_label_map(selected_families)
         self.files = self._load_and_filter_files(data_path, max_samples)
 
@@ -156,16 +154,48 @@ class BigVGAN_NSynthDataset(Dataset):
             ['bass', 'brass', 'flute', 'guitar', 'keyboard', 'mallet', 'organ', 'reed', 'string', 'synth_lead',
              'vocal'])}
 
-    def _get_instrument_from_path(self, path):
+    def _get_info_from_path(self, path):
+        """
+        Extracts instrument name AND pitch from filename.
+        Format: instrument_family_source_id_pitch-velocity.wav
+        Example: guitar_acoustic_001-060-127.wav
+        """
         filename = os.path.basename(path)
+
+        # 1. Get Instrument Name
         parts = filename.split('_')
-        if len(parts) > 1 and parts[0] == 'synth' and parts[1] == 'lead': return "synth_lead"
-        return parts[0]
+        if len(parts) > 1 and parts[0] == 'synth' and parts[1] == 'lead':
+            inst_name = "synth_lead"
+        else:
+            inst_name = parts[0]
+
+        # 2. Get Pitch
+        # The pitch is usually in the last segment after the last '_'
+        # Example part: "001-060-127.wav"
+        last_part = parts[-1]
+        try:
+            # Split "001-060-127.wav" by "-" -> ["001", "060", "127.wav"]
+            meta_parts = last_part.split('-')
+            # Pitch is the middle number (MIDI 0-127)
+            pitch = int(meta_parts[1])
+        except (IndexError, ValueError):
+            # Fallback if filename format is weird
+            print(f"Warning: Could not parse pitch from {filename}, defaulting to 60 (Middle C)")
+            pitch = 60
+
+        return inst_name, pitch
 
     def _load_and_filter_files(self, data_path, max_samples):
         all_files = glob.glob(os.path.join(data_path, 'audio', '*.wav'))
-        if not all_files: all_files = glob.glob(os.path.join(data_path, 'nsynth-valid', 'audio', '*.wav'))
-        valid_files = [p for p in all_files if self._get_instrument_from_path(p) in self.label_map]
+        if not all_files:
+            all_files = glob.glob(os.path.join(data_path, 'nsynth_valid', 'audio', '*.wav'))
+
+        valid_files = []
+        for p in all_files:
+            name, _ = self._get_info_from_path(p)
+            if name in self.label_map:
+                valid_files.append(p)
+
         if max_samples: valid_files = valid_files[:max_samples]
         return valid_files
 
@@ -176,10 +206,11 @@ class BigVGAN_NSynthDataset(Dataset):
         path = self.files[idx]
 
         # Get Label
-        instrument_name = self._get_instrument_from_path(path)
+        instrument_name, pitch_val = self._get_info_from_path(path)
         label = torch.tensor(self.label_map[instrument_name], dtype=torch.long)
+        pitch = torch.tensor(pitch_val, dtype=torch.long)  # MIDI pitch is 0-127
 
         # Get spectrogram
         spec = self.vocoder.encode(path, self.T_target) # [1, 80, T]
 
-        return spec, label
+        return spec, label, pitch
