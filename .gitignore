@@ -2,3 +2,5 @@
 .idea/
 checkpoints/
 data/
+*.egg-info/
+/results
