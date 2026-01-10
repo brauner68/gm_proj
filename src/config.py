@@ -5,6 +5,8 @@ def get_config():
     cfg = {
         'data_path': '/content/nsynth_data/nsynth-valid',
         'output_dir': '/content/results/run_01',
+
+        'conditioning': 'time', # 'time' or 'concat'
         'T_target': 160,
         'max_samples': None,
         'selected_families': ['guitar', 'mallet', 'brass'],

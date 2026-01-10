@@ -44,11 +44,17 @@ class DiffusionTrainer:
         self.num_classes = len(self.dataset.label_map)
         self.null_class = self.num_classes  # The index of the null token
 
-        # 4. Initialize Model (Using the modern TimeConditioned version)
-        self.model = TimeConditionedUnet(
-            num_classes=self.num_classes + 1,  # +1 for null token
-            T=args['T_target'],
-        ).to(self.device)
+        # 4. Initialize Model
+        if args['conditioning'] == 'time':
+            self.model = TimeConditionedUnet(
+                num_classes=self.num_classes + 1,  # +1 for null token
+                T=args['T_target'],
+            ).to(self.device)
+        else:
+            self.model = ConcatConditionedUnet(
+                num_classes=self.num_classes + 1,
+                T=args['T_target'],
+            ).to(self.device)
 
         # 5. Scheduler (The Diffusion Magic)
         self.noise_scheduler = DDPMScheduler(
