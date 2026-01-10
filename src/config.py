@@ -7,6 +7,7 @@ def get_config():
         'output_dir': '/content/results/run_01',
 
         'conditioning': 'time', # 'time' or 'concat'
+        'use_pitch': False,
         'T_target': 160,
         'max_samples': None,
         'selected_families': ['guitar', 'mallet', 'brass'],

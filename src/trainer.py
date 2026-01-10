@@ -51,6 +51,7 @@ class DiffusionTrainer:
                 T=args['T_target'],
             ).to(self.device)
         else:
+            print('---------------------------------------------------')
             self.model = ConcatConditionedUnet(
                 num_classes=self.num_classes + 1,
                 T=args['T_target'],
