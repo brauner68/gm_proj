@@ -33,12 +33,16 @@ class DiffusionGenerator:
         if self.config['conditioning'] == 'time':
             self.model = TimeConditionedUnet(
                 num_classes=self.num_classes + 1,
-                T=config['T_target']
+                num_pitches=129,
+                T=config['T_target'],
+                use_pitch=config['use_pitch']
             ).to(self.device)
         else:
             self.model = ConcatConditionedUnet(
                 num_classes=self.num_classes + 1,
                 T=config['T_target'],
+                num_pitches=129,
+                use_pitch=config['use_pitch']
             ).to(self.device)
 
         # 4. Load Weights
@@ -72,7 +76,7 @@ class DiffusionGenerator:
         print(f"   Loaded weights from {self.checkpoint_path}")
 
     @torch.no_grad()
-    def generate(self, samples_per_class=1, output_dir=None):
+    def generate(self, pitch=60, samples_per_class=1, output_dir=None):
         """
         Generates audio for every class in the config using batch processing.
         """
@@ -85,11 +89,19 @@ class DiffusionGenerator:
         # Dictionary to store results: {'guitar': [wav1, wav2], 'flute': ...}
         results = {}
 
+        use_pitch = self.config['use_pitch']
+
         for instrument_name, label_idx in self.label_map.items():
 
             # --- 1. Prepare Batch ---
             # Labels: [samples_per_class]
             labels = torch.full((samples_per_class,), label_idx, device=self.device, dtype=torch.long)
+
+            # Create Pitches (Only if needed)
+            if use_pitch:
+                pitches = torch.full((samples_per_class,), pitch, device=self.device, dtype=torch.long)
+            else:
+                pitches = None
 
             # Latents: [samples_per_class, 1, 80, T]
             latents = torch.randn(
@@ -104,7 +116,7 @@ class DiffusionGenerator:
                 t_batch = torch.full((samples_per_class,), t, device=self.device, dtype=torch.long)
 
                 # Predict & Step
-                noise_pred = self.model(latents, t_batch, labels)
+                noise_pred = self.model(latents, t_batch, labels, pitches)
                 latents = self.noise_scheduler.step(noise_pred, t, latents).prev_sample
 
             # --- 3. Batch Decoding ---

@@ -43,18 +43,24 @@ class DiffusionTrainer:
         # We add 1 extra class for the "Null" token (used for Classifier-Free Guidance)
         self.num_classes = len(self.dataset.label_map)
         self.null_class = self.num_classes  # The index of the null token
+        # Pitch: MIDI 0-127. Null token = 128.
+        self.num_pitches = 129
+        self.null_pitch = 128
 
         # 4. Initialize Model
         if args['conditioning'] == 'time':
             self.model = TimeConditionedUnet(
-                num_classes=self.num_classes + 1,  # +1 for null token
+                num_classes=self.num_classes + 1,
+                num_pitches=self.num_pitches,
                 T=args['T_target'],
+                use_pitch=args['use_pitch']
             ).to(self.device)
         else:
-            print('---------------------------------------------------')
             self.model = ConcatConditionedUnet(
                 num_classes=self.num_classes + 1,
+                num_pitches=self.num_pitches,
                 T=args['T_target'],
+                use_pitch=args['use_pitch']
             ).to(self.device)
 
         # 5. Scheduler (The Diffusion Magic)
@@ -81,15 +87,21 @@ class DiffusionTrainer:
 
     def train(self):
         self.model.train()
+        use_pitch = self.args['use_pitch']
 
         for epoch in range(self.args['epochs']):
             print(f"Epoch {epoch + 1}/{self.args['epochs']}")
             progress_bar = tqdm(self.dataloader, leave=False)
             epoch_loss = 0
 
-            for images, labels, _ in progress_bar:
+            for images, labels, pitches in progress_bar:
                 images = images.to(self.device)
                 labels = labels.to(self.device)
+
+                if use_pitch:
+                    pitches = pitches.to(self.device)
+                else:
+                    pitches = None
 
                 # --- A. Sample Noise ---
                 noise = torch.randn_like(images)
@@ -104,17 +116,16 @@ class DiffusionTrainer:
                 # --- C. Add Noise (Forward Diffusion) ---
                 noisy_images = self.noise_scheduler.add_noise(images, noise, timesteps)
 
-                # --- D. Classifier-Free Guidance Training (Dropout) ---
-                # Randomly replace real labels with the "Null" class
-                # This teaches the model to generate even without specific instructions
+                # --- D. CFG Logic ---
                 if self.args['cfg_prob'] > 0:
-                    # Create a mask: True if we should drop the label
-                    mask = torch.rand(bs, device=self.device) < self.args['cfg_prob']
-                    # Apply mask: Set label to null_class where mask is True
+                    mask = torch.rand(images.shape[0], device=self.device) < self.args['cfg_prob']
                     labels[mask] = self.null_class
 
+                    if use_pitch:
+                        pitches[mask] = self.null_pitch
+
                 # --- E. Predict Noise (Reverse Process) ---
-                noise_pred = self.model(noisy_images, timesteps, labels)
+                noise_pred = self.model(noisy_images, timesteps, labels, pitches)
 
                 # --- F. Loss & Backprop ---
                 loss = F.mse_loss(noise_pred, noise)
@@ -134,6 +145,8 @@ class DiffusionTrainer:
                 self.save_checkpoint(epoch)
                 if self.evaluation:
                     self.evaluate(epoch)  # Generate sample images
+
+# ------------------------------------------------------------------------------------
 
     def plot_loss_curve(self):
         """Plots the training loss curve and saves it."""
@@ -169,6 +182,11 @@ class DiffusionTrainer:
         labels = torch.arange(self.num_classes, device=self.device)
         num_samples = len(labels)
 
+        pitches = None
+        if self.args.get('use_pitch', True):
+            # Create a tensor of 60s matching the number of samples
+            pitches = torch.full((num_samples,), 60, device=self.device, dtype=torch.long)
+
         # Start from pure random noise
         # Shape: [Num_Classes, 1, 80, T]
         latents = torch.randn(
@@ -182,7 +200,7 @@ class DiffusionTrainer:
             # 1. Predict Noise
             # We expand t to match batch size
             t_batch = torch.full((num_samples,), t, device=self.device, dtype=torch.long)
-            noise_pred = self.model(latents, t_batch, labels)
+            noise_pred = self.model(latents, t_batch, labels, pitches)
 
             # 2. Subtract Noise (Scheduler Step)
             latents = self.noise_scheduler.step(noise_pred, t, latents).prev_sample
