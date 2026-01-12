@@ -89,10 +89,12 @@ class DiffusionTrainer:
     def train(self):
         self.model.train()
         use_pitch = self.args['use_pitch']
+        script = self.args['script']
 
         for epoch in range(self.args['epochs']):
             print(f"Epoch {epoch + 1}/{self.args['epochs']}")
-            progress_bar = tqdm(self.dataloader, leave=False)
+            leave = False if not script else True
+            progress_bar = tqdm(self.dataloader, leave=leave)
             epoch_loss = 0
 
             for images, labels, pitches in progress_bar:

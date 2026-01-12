@@ -5,6 +5,7 @@ def get_config():
     cfg = {
         'data_path': '/content/nsynth_data/nsynth-valid',
         'output_dir': '/content/results/run_01',
+        'script': False,
 
         'conditioning': 'time', # 'time' or 'concat'
         'use_pitch': False,
