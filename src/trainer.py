@@ -75,6 +75,7 @@ class DiffusionTrainer:
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=args['lr'])
 
         self.loss_history = []
+        self.change_lr = args['change_lr']
 
         print(f"Trainer Initialized on {self.device}")
         print(f"Classes: {self.dataset.label_map}")
@@ -135,6 +136,12 @@ class DiffusionTrainer:
 
                 epoch_loss += loss.item()
                 progress_bar.set_description(f"Loss: {loss.item():.4f}")
+
+                # Change lr
+                if self.change_lr is not None:
+                    if epoch == self.change_lr['epoch']:
+                        for pg in self.optimizer.param_groups:
+                            pg['lr'] = self.change_lr['lr']
 
             avg_loss = epoch_loss / len(self.dataloader)
             print(f"Average Epoch Loss: {avg_loss:.4f}")
