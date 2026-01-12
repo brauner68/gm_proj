@@ -14,6 +14,7 @@ def get_config():
         'epochs': 15,
         'batch_size': 32,
         'lr': 1e-4,
+        'change_lr': 1e-4,
         'save_interval': 5,
         'cfg_prob': 0.1,
 
