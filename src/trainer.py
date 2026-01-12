@@ -140,6 +140,7 @@ class DiffusionTrainer:
                 # Change lr
                 if self.change_lr is not None:
                     if epoch == self.change_lr['epoch']:
+                        print(f"Learning rate changed to {self.change_lr['lr']}")
                         for pg in self.optimizer.param_groups:
                             pg['lr'] = self.change_lr['lr']
 

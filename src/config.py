@@ -13,8 +13,8 @@ def get_config():
         'selected_families': ['guitar', 'mallet', 'brass'],
         'epochs': 15,
         'batch_size': 32,
-        'lr': None,
-        'change_lr': 1e-4,
+        'lr': 1e-4,
+        'change_lr': None,
         'save_interval': 5,
         'cfg_prob': 0.1,
 
