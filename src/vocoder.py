@@ -112,7 +112,7 @@ import librosa
 class BigVGAN_Vocoder:
     def __init__(self, device='cpu'):
         self.device = device
-        print("⏳ Loading BigVGAN ")
+        print("⏳ Loading BigVGAN")
 
         # Auto-download the model from Hugging Face
         self.model = bigvgan.BigVGAN.from_pretrained(
