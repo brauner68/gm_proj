@@ -8,3 +8,4 @@ librosa
 soundfile
 diffusers
 bigvgan
+cv2

@@ -6,7 +6,7 @@ from tqdm.auto import tqdm
 # Import your modules
 from src.model import TimeConditionedUnet, ConcatConditionedUnet
 from src.vocoder import BigVGAN_Vocoder
-
+from src.denoising import denoise_audio_tensor, denoise_tensor_via_nlm
 
 class DiffusionGenerator:
     def __init__(self, config, checkpoint_path):
@@ -118,6 +118,19 @@ class DiffusionGenerator:
             t_batch = torch.full((B,), t, device=self.device, dtype=torch.long)
             noise_pred = self.model(latents, t_batch, labels, pitches)
             latents = self.noise_scheduler.step(noise_pred, t, latents).prev_sample
+
+        # --- DENOISING BLOCK ---
+        method = self.config.get('denoise_method', None)
+        strength = self.config.get('denoise_strength', 0)
+
+        if method == 'spectral':
+            print(f"   🧹 Applying Spectral Gating (Strength: {strength})")
+            latents = denoise_audio_tensor(latents, strength=strength)
+
+        elif method == 'nlm':
+            print(f"   🧹 Applying NLM Denoising (Strength: {strength})")
+            # Note: NLM is slower as it moves data to CPU and back
+            latents = denoise_tensor_via_nlm(latents, strength=int(strength))
 
         # ---- 3) Batch Decoding ----
         specs_batch = latents.squeeze(1)  # [B, 80, T]

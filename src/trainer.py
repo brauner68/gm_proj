@@ -6,6 +6,7 @@ from diffusers import DDPMScheduler
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
+from src.denoising import denoise_visual_image, denoise_audio_tensor
 
 # Import your modules
 from src.dataset import NSynthDataset, BigVGAN_NSynthDataset
@@ -223,6 +224,10 @@ class DiffusionTrainer:
         self.model.train()  # Switch back to train mode
 
     def plot_results(self, images, labels, epoch):
+        # Optional denoising
+        if self.args['denoise_method'] == 'spectral':
+            images = denoise_audio_tensor(images, strength=self.args['denoise_strength'])
+
         # Helper to plot grid
         num_imgs = len(images)
         fig, axes = plt.subplots(1, num_imgs, figsize=(num_imgs * 3, 3))
@@ -234,9 +239,16 @@ class DiffusionTrainer:
         for i, ax in enumerate(axes):
             # Image is [1, 64, 64], remove channel dim
             img = images[i].squeeze().numpy()
+            # If NLM, we denoise the IMAGE for visual prettiness
+            if self.args['denoise_method'] == 'nlm':
+                # Note: strength usually needs to be ~10-15 for NLM
+                # We use the visual helper which returns uint8 directly
+                img_to_plot = denoise_visual_image(img, strength=int(self.args['denoise_strength']))
+            else:
+                img_to_plot = img
 
             # Flip Y axis (Spectrograms usually have low freq at bottom)
-            ax.imshow(img, origin='lower', cmap='inferno')
+            ax.imshow(img_to_plot, origin='lower', cmap='inferno')
 
             label_name = int_to_name[labels[i].item()]
             ax.set_title(f"{label_name}")
