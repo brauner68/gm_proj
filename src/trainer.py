@@ -115,6 +115,7 @@ class DiffusionTrainer:
                 self.optimizer.zero_grad()
 
                 epoch_loss += loss.item()
+                self.loss_history.append(epoch_loss)
                 progress_bar.set_description(f"Loss: {loss.item():.4f}")
 
                 if self.change_lr and epoch == self.change_lr['epoch']:
@@ -123,7 +124,6 @@ class DiffusionTrainer:
 
             avg_loss = epoch_loss / len(self.dataloader)
             print(f"Average Epoch Loss: {avg_loss:.4f}")
-            self.loss_history.append(avg_loss)
 
             if (epoch + 1) % self.args['save_interval'] == 0:
                 self.save_checkpoint(epoch)
@@ -138,7 +138,7 @@ class DiffusionTrainer:
     def plot_loss_curve(self):
         plt.figure(figsize=(10, 5))
         plt.plot(self.loss_history, label='Training Loss')
-        plt.title('Training Loss per Epoch')
+        plt.title('Training Loss per Batch')
         plt.savefig(os.path.join(self.args['output_dir'], "loss_curve.png"))
         plt.close()
 
