@@ -168,5 +168,8 @@ class DiffusionGenerator:
                 ax_clean.axis('off')
 
         plt.tight_layout()
-        plt.savefig(os.path.join(save_dir, "generation_summary_plot.png"))
+        save_path = os.path.join(save_dir, "generation_summary_plot.png")
+        plt.savefig(save_path)
+        print(f"   📊 Plot saved to {save_path}")
+        plt.show()
         plt.close()

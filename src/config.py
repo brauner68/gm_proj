@@ -8,6 +8,7 @@ def get_config():
         'script': False,
 
         'conditioning': 'time', # 'time' or 'concat'
+        'class_emb_size': 32,
         'use_pitch': False,
         'T_target': 160,
         'max_samples': None,
@@ -24,7 +25,7 @@ def get_config():
         'beta_end':0.02,
         'beta_schedule':"linear",
 
-        'denoise_method': None,
+        'denoise_method': None, # 'spectral', 'nlm', or None
         'denoise_strength': 0.0,
     }
     return cfg
