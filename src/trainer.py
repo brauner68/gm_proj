@@ -145,6 +145,7 @@ class DiffusionTrainer:
                         print(f"Learning rate changed to {self.change_lr['lr']}")
                         for pg in self.optimizer.param_groups:
                             pg['lr'] = self.change_lr['lr']
+                        self.change_lr = None
 
             avg_loss = epoch_loss / len(self.dataloader)
             print(f"Average Epoch Loss: {avg_loss:.4f}")

@@ -86,59 +86,55 @@ class DiffusionGenerator:
         print(f"🎹 Generating {samples_per_class} samples per class...")
         print(f"📂 Output: {save_dir}")
 
-        # Dictionary to store results: {'guitar': [wav1, wav2], 'flute': ...}
         results = {}
-
         use_pitch = self.config['use_pitch']
 
-        for instrument_name, label_idx in self.label_map.items():
+        # ---- 1) Build ONE big batch for ALL instruments ----
+        instrument_names = list(self.label_map.keys())
+        label_indices = list(self.label_map.values())
+        n_classes = len(instrument_names)
 
-            # --- 1. Prepare Batch ---
-            # Labels: [samples_per_class]
-            labels = torch.full((samples_per_class,), label_idx, device=self.device, dtype=torch.long)
+        # Total batch size = classes * samples_per_class
+        B = n_classes * samples_per_class
 
-            # Create Pitches (Only if needed)
-            if use_pitch:
-                pitches = torch.full((samples_per_class,), pitch, device=self.device, dtype=torch.long)
-            else:
-                pitches = None
+        # Labels: repeat each class label samples_per_class times (grouped per instrument)
+        labels = torch.tensor(label_indices, device=self.device, dtype=torch.long)
+        labels = labels.repeat_interleave(samples_per_class)  # [B]
 
-            # Latents: [samples_per_class, 1, 80, T]
-            latents = torch.randn(
-                (samples_per_class, 1, 80, self.config['T_target']),
-                device=self.device
-            )
+        # Pitches (optional): same pitch for the entire batch
+        if use_pitch:
+            pitches = torch.full((B,), pitch, device=self.device, dtype=torch.long)
+        else:
+            pitches = None
 
-            # --- 2. Diffusion Loop ---
-            desc = f"Gen: {instrument_name}"
-            for t in tqdm(self.noise_scheduler.timesteps, desc=desc, leave=False):
-                # Expand time to batch
-                t_batch = torch.full((samples_per_class,), t, device=self.device, dtype=torch.long)
+        # Latents: [B, 1, 80, T]
+        latents = torch.randn(
+            (B, 1, 80, self.config['T_target']),
+            device=self.device
+        )
 
-                # Predict & Step
-                noise_pred = self.model(latents, t_batch, labels, pitches)
-                latents = self.noise_scheduler.step(noise_pred, t, latents).prev_sample
+        # ---- 2) Diffusion Loop ----
+        for t in tqdm(self.noise_scheduler.timesteps, desc="Gen: all instruments", leave=False):
+            t_batch = torch.full((B,), t, device=self.device, dtype=torch.long)
+            noise_pred = self.model(latents, t_batch, labels, pitches)
+            latents = self.noise_scheduler.step(noise_pred, t, latents).prev_sample
 
-            # --- 3. Batch Decoding ---
-            # Model output is [B, 1, 80, T]. Vocoder expects [B, 80, T].
-            specs_batch = latents.squeeze(1)
+        # ---- 3) Batch Decoding ----
+        specs_batch = latents.squeeze(1)  # [B, 80, T]
+        audio_batch = self.vocoder.decode(specs_batch)  # typically [B, 1, T_audio] (depends on your vocoder)
 
-            # Decode the ENTIRE batch at once
-            # Returns [B, 1, T_audio]
-            audio_batch = self.vocoder.decode(specs_batch)
-
-            # --- 4. Save Individually ---
-            # Store in results dict
+        # ---- 4) Save Individually + Build results dict ----
+        idx = 0
+        for instrument_name in instrument_names:
             results[instrument_name] = []
             for i in range(samples_per_class):
                 filename = f"{instrument_name}_{i + 1}.wav"
                 path = os.path.join(save_dir, filename)
 
-                # Pass single item [1, T_audio] to save
-                self.vocoder.save_audio(audio_batch[i], path)
-
-                # Add to results (keep on CPU for display)
-                results[instrument_name].append(audio_batch[i].cpu())
+                self.vocoder.save_audio(audio_batch[idx], path)
+                results[instrument_name].append(audio_batch[idx].cpu())
+                idx += 1
 
         print("✨ Generation Complete!")
         return results
+
