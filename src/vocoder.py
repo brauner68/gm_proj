@@ -1,3 +1,4 @@
+from __future__ import annotations
 import os
 # --- SMART CACHE SETUP ---
 # 1. Define your personal persistent path
@@ -13,7 +14,6 @@ else:
     # No -> We are likely on Colab or another machine
     print("⚠️ Standard Environment detected. Using default cache (downloads may occur).")
 
-from __future__ import annotations
 import torch
 import torchaudio
 import torchaudio.transforms as T
