@@ -85,18 +85,16 @@ class TimeConditionedUnet(nn.Module):
     def __init__(self, num_classes, num_pitches=129, T=160, use_pitch=True):
         super().__init__()
         self.use_pitch = use_pitch
-        self.embed_dim = 64 * 4
 
-        # 1. Class Embedding (Always used)
-        self.class_emb = nn.Embedding(num_classes, self.embed_dim)
-
-        # 2. Pitch Embedding (Optional)
+        # Calculate total unique combinations
+        # If use_pitch is False, we just use num_classes
+        # If use_pitch is True, we have (Classes * Pitches) combinations
         if self.use_pitch:
-            self.pitch_emb = nn.Embedding(num_pitches, self.embed_dim)
+            self.total_embeddings = num_classes * num_pitches
         else:
-            self.pitch_emb = None
+            self.total_embeddings = num_classes
 
-        # 3. Core UNet
+        # We let diffusers handle the embedding internally
         self.model = UNet2DModel(
             sample_size=(80, T),
             in_channels=1,
@@ -105,19 +103,23 @@ class TimeConditionedUnet(nn.Module):
             block_out_channels=(64, 128, 128, 256),
             down_block_types=("DownBlock2D", "DownBlock2D", "AttnDownBlock2D", "AttnDownBlock2D"),
             up_block_types=("AttnUpBlock2D", "AttnUpBlock2D", "UpBlock2D", "UpBlock2D"),
-            num_class_embeds=None
+
+            # PASS THE TOTAL COUNT HERE
+            num_class_embeds=self.total_embeddings
         )
 
     def forward(self, x, t, class_labels, pitch_labels=None):
-        # 1. Start with Class Embedding
-        total_emb = self.class_emb(class_labels)  # [Batch, 256]
-
-        # 2. Add Pitch Embedding (if enabled)
+        # 1. Flatten the labels into a single integer
+        # New ID = (Class_ID * 129) + Pitch_ID
         if self.use_pitch:
             if pitch_labels is None:
-                raise ValueError("Model configured for pitch, but no pitch_labels provided!")
-            p_emb = self.pitch_emb(pitch_labels)
-            total_emb = total_emb + p_emb
+                # Fallback: Treat as pitch 0 or handle error
+                pitch_labels = torch.zeros_like(class_labels)
 
-        # 3. Pass to UNet
-        return self.model(x, t, class_embeds=total_emb).sample
+            # Combine them
+            combined_labels = (class_labels * 129) + pitch_labels
+        else:
+            combined_labels = class_labels
+
+        # 2. Pass standard integer labels to the model
+        return self.model(x, t, class_labels=combined_labels).sample
