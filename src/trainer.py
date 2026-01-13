@@ -114,8 +114,8 @@ class DiffusionTrainer:
                 self.optimizer.step()
                 self.optimizer.zero_grad()
 
+                self.loss_history.append(loss.item())
                 epoch_loss += loss.item()
-                self.loss_history.append(epoch_loss)
                 progress_bar.set_description(f"Loss: {loss.item():.4f}")
 
                 if self.change_lr and epoch == self.change_lr['epoch']:
