@@ -27,5 +27,6 @@ def get_config():
 
         'denoise_method': None, # 'spectral', 'nlm', or None
         'denoise_strength': 0.0,
+        'custom_kernel': [0.15, 0.7, 0.15]
     }
     return cfg

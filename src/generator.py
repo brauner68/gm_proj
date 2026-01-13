@@ -103,6 +103,8 @@ class DiffusionGenerator:
             latents = smooth_via_median(latents)
         elif method == 'gaussian':
             latents = smooth_via_gaussian(latents)
+        elif method == 'custom':
+            latents = smooth_via_custom_kernel(latents, kernel_list=self.config['custom_kernel'])
 
         # 4. Save Plots
         print("   📊 Saving Spectrogram Plots...")
