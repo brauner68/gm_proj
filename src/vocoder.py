@@ -1,10 +1,24 @@
-from __future__ import annotations
+import os
+# --- SMART CACHE SETUP ---
+# 1. Define your personal persistent path
+cluster_base_path = "/gpfs0/bgu-br/users/nitaype/gm_proj"
+custom_cache_path = os.path.join(cluster_base_path, ".cache_hf")
 
+# 2. Check: Are we on the cluster? (Does the base folder exist?)
+if os.path.exists(cluster_base_path):
+    # Yes -> Force Hugging Face to use your folder
+    os.environ['HF_HOME'] = custom_cache_path
+    print(f"✅ Detected Cluster Environment. Using persistent cache: {custom_cache_path}")
+else:
+    # No -> We are likely on Colab or another machine
+    print("⚠️ Standard Environment detected. Using default cache (downloads may occur).")
+
+from __future__ import annotations
 import torch
 import torchaudio
 import torchaudio.transforms as T
 import soundfile as sf
-import os
+
 
 
 class Vocoder:

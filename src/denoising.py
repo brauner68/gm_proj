@@ -32,7 +32,7 @@ def denoise_audio_tensor(spectrogram, strength=0.15):
 
     # 4. Estimate Noise Profile (Median across Time Axis)
     # This runs in parallel for all B samples
-    noise_profile = torch.median(spec_shifted, dim=-1, keepdim=True).values
+    noise_profile = torch.median(spec_shifted, dim=-2, keepdim=True).values
 
     # 5. Calculate Threshold & Apply Gate
     # strength is relative to the noise floor we just found
