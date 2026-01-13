@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import warnings
 # --- SMART CACHE SETUP ---
 # 1. Define your personal persistent path
 cluster_base_path = "/gpfs0/bgu-br/users/nitaype/gm_proj"
@@ -13,6 +14,8 @@ if os.path.exists(cluster_base_path):
 else:
     # No -> We are likely on Colab or another machine
     print("⚠️ Standard Environment detected. Using default cache (downloads may occur).")
+# Suppress the "weight_norm" warning from BigVGAN/PyTorch
+warnings.filterwarnings("ignore", category=FutureWarning, module="torch.nn.utils.weight_norm")
 
 import torch
 import torchaudio

@@ -208,7 +208,7 @@ class DiffusionTrainer:
 
             ax_orig.imshow(raw_img, origin='lower', cmap='inferno')
             label_name = int_to_name[labels[i].item()]
-            ax_orig.set_title(f"{label_name}\n(Raw)")
+            ax_orig.set_title(f"{label_name}")
             ax_orig.axis('off')
 
             # --- 2. Plot Denoised (Bottom Row) ---

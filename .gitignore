@@ -6,3 +6,6 @@ data/
 /results
 /src/__pycache__/
 notebooks/
+local_debug.py
+high_guitar.wav
+low_string.wav
