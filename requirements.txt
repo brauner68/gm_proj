@@ -8,4 +8,4 @@ librosa
 soundfile
 diffusers
 bigvgan
-cv2
+opencv-python-headless
