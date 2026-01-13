@@ -8,7 +8,7 @@ from tqdm.auto import tqdm
 # Import your modules
 from src.model import TimeConditionedUnet, ConcatConditionedUnet
 from src.vocoder import BigVGAN_Vocoder
-from src.denoising import denoise_audio_tensor, denoise_tensor_via_nlm, denoise_visual_image
+from src.denoising import *
 
 
 class DiffusionGenerator:
@@ -99,6 +99,10 @@ class DiffusionGenerator:
         elif method == 'nlm':
             print(f"   🧹 Applying NLM Denoising (Strength: {strength})")
             latents = denoise_tensor_via_nlm(latents, strength=int(strength))
+        elif method == 'median':
+            latents = smooth_via_median(latents)
+        elif method == 'gaussian':
+            latents = smooth_via_gaussian(latents)
 
         # 4. Save Plots
         print("   📊 Saving Spectrogram Plots...")
