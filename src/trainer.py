@@ -26,8 +26,6 @@ class DiffusionTrainer:
         config_path = os.path.join(args['output_dir'], 'config.json')
         with open(config_path, 'w') as f:
             json.dump(args, f, indent=4, default=str)
-            
-        print(f"📄 Config saved to {config_path}")
 
         # 2. Prepare Data
         self.dataset = BigVGAN_NSynthDataset(
