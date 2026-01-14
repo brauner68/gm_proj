@@ -63,71 +63,106 @@ class DiffusionGenerator:
         self.model.eval()
 
     @torch.no_grad()
-    def generate(self, pitch=60, samples_per_class=1, output_dir=None):
+    @torch.no_grad()
+    def generate(self, pitch=60, samples_per_class=1, output_dir=None, guidance_scale=3.0):
         """
-        Generates audio AND plots for every class.
+        Optimized generation: Runs ALL instruments in a single batch (One loop over t).
         """
         save_dir = output_dir if output_dir else os.path.join(self.config['output_dir'], "generated")
         os.makedirs(save_dir, exist_ok=True)
-        print(f"🎹 Generating {samples_per_class} samples per class...")
 
-        # 1. Setup Batch
-        instrument_names = list(self.label_map.keys())
-        n_classes = len(instrument_names)
-        B = n_classes * samples_per_class
+        use_pitch = self.config.get('use_pitch', True)
+        null_class = self.num_classes
+        null_pitch = 128
 
-        labels = torch.tensor(list(self.label_map.values()), device=self.device).long().repeat_interleave(
-            samples_per_class)
-        pitches = torch.full((B,), pitch, device=self.device).long() if self.config['use_pitch'] else None
+        # --- 1. Construct the Batch ---
+        # We collect all the labels we need for the entire run
+        all_labels = []
+        all_pitches = []
+        file_metadata = []  # To keep track of which index belongs to which instrument
 
-        latents = torch.randn((B, 1, 80, self.config['T_target']), device=self.device)
+        for name, label_idx in self.label_map.items():
+            # Add N copies for this instrument
+            all_labels.extend([label_idx] * samples_per_class)
+            if use_pitch:
+                all_pitches.extend([pitch] * samples_per_class)
 
-        # 2. Diffusion Loop
-        for t in tqdm(self.noise_scheduler.timesteps, desc="Generating", leave=False):
-            t_batch = torch.full((B,), t, device=self.device).long()
-            noise_pred = self.model(latents, t_batch, labels, pitches)
+            # Record metadata for saving later
+            for i in range(samples_per_class):
+                file_metadata.append(f"{name}_{i + 1}.wav")
+
+        total_samples = len(all_labels)
+        print(f"🎹 Generating {total_samples} samples in parallel (Scale={guidance_scale})...")
+
+        # Convert to Tensors
+        cond_labels = torch.tensor(all_labels, device=self.device, dtype=torch.long)
+        cond_pitches = torch.tensor(all_pitches, device=self.device, dtype=torch.long) if use_pitch else None
+
+        # Create Unconditional Tensors (for CFG)
+        uncond_labels = torch.full((total_samples,), null_class, device=self.device, dtype=torch.long)
+        uncond_pitches = torch.full((total_samples,), null_pitch, device=self.device,
+                                    dtype=torch.long) if use_pitch else None
+
+        # --- 2. Initialize Latents ---
+        latents = torch.randn(
+            (total_samples, 1, 80, self.config['T_target']),
+            device=self.device
+        )
+
+        # --- 3. Single Diffusion Loop ---
+        for t in tqdm(self.noise_scheduler.timesteps, desc="Sampling", leave=False):
+            # A. Prepare Inputs for CFG (Batch Size * 2)
+            # We stack [Conditional, Unconditional]
+            latent_input = torch.cat([latents] * 2)
+            t_batch = torch.full((total_samples * 2,), t, device=self.device, dtype=torch.long)
+
+            label_batch = torch.cat([cond_labels, uncond_labels])
+            pitch_batch = torch.cat([cond_pitches, uncond_pitches]) if use_pitch else None
+
+            # B. Predict Noise
+            noise_pred = self.model(latent_input, t_batch, label_batch, pitch_batch)
+
+            # C. Perform Guidance
+            noise_pred_cond, noise_pred_uncond = noise_pred.chunk(2)
+            noise_cfg = noise_pred_uncond + guidance_scale * (noise_pred_cond - noise_pred_uncond)
+
+            # D. Rescale CFG (Fixes noise power artifacts)
+            std_cond = noise_pred_cond.std()
+            std_cfg = noise_cfg.std()
+            factor = 0.7
+            if std_cfg > 0:  # Avoid div by zero
+                noise_pred_rescaled = noise_cfg * (std_cond / std_cfg)
+                noise_pred = factor * noise_pred_rescaled + (1 - factor) * noise_cfg
+            else:
+                noise_pred = noise_cfg
+
+            # E. Scheduler Step
             latents = self.noise_scheduler.step(noise_pred, t, latents).prev_sample
 
-        # 3. Denoising
-        raw_latents = latents.clone()  # Keep raw for plotting
-        method = self.config.get('denoise_method', None)
-        strength = self.config.get('denoise_strength', 0)
-
-        if method == 'spectral':
-            print(f"   🧹 Applying Spectral Gating (Strength: {strength})")
-            latents = denoise_audio_tensor(latents, strength=strength)
-        elif method == 'nlm':
-            print(f"   🧹 Applying NLM Denoising (Strength: {strength})")
-            latents = denoise_tensor_via_nlm(latents, strength=int(strength))
-        elif method == 'median':
-            latents = smooth_via_median(latents)
-        elif method == 'gaussian':
-            latents = smooth_via_gaussian(latents)
-        elif method == 'custom':
-            latents = smooth_via_custom_kernel(latents, kernel_list=self.config['custom_kernel'])
-
-        # 4. Save Plots
-        print("   📊 Saving Spectrogram Plots...")
-        self.save_plots(raw_latents, latents, labels, save_dir, method, instrument_names, samples_per_class)
-
-        # 5. Decode Audio
+        # --- 4. Decode All at Once ---
+        # Input: [Total_Samples, 1, 80, T]
         specs_batch = latents.squeeze(1)
-        audio_batch = self.vocoder.decode(specs_batch)
 
-        # 6. Save Audio Files
-        idx = 0
+        # This calls BigVGAN once for the massive batch
+        print("🔊 Decoding audio...")
+        audio_batch = self.vocoder.decode(specs_batch)  # Returns [Total_Samples, 1, Audio_Len]
+
+        # --- 5. Save Files ---
+        print(f"📂 Saving to {save_dir}...")
         results = {}
-        for instrument_name in instrument_names:
-            results[instrument_name] = []
-            for i in range(samples_per_class):
-                filename = f"{instrument_name}_{i + 1}.wav"
-                self.vocoder.save_audio(audio_batch[idx], os.path.join(save_dir, filename))
-                results[instrument_name].append(audio_batch[idx].cpu())
-                idx += 1
 
-        print("✨ Generation & Plotting Complete!")
+        for i, filename in enumerate(file_metadata):
+            path = os.path.join(save_dir, filename)
+            self.vocoder.save_audio(audio_batch[i], path)
+
+            # Optional: Group by instrument for return
+            inst_name = filename.split('_')[0]
+            if inst_name not in results: results[inst_name] = []
+            results[inst_name].append(audio_batch[i].cpu())
+
+        print("✨ Generation Complete!")
         return results
-
+    
     def save_plots(self, raw_latents, clean_latents, labels, save_dir, method, instrument_names, samples_per_class):
         """
         Saves a comparison plot for each generated sample.

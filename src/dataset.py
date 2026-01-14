@@ -246,7 +246,6 @@ class BigVGAN_NSynthDataset(Dataset):
             # --- 2. Filter: ONLY allow 'acoustic' ---
             if source != 'acoustic':
                 continue
-            # ----------------------------------------
 
             # --- 3. Identify Instrument Name ---
             name, _ = self._get_info_from_path(p)
@@ -260,7 +259,7 @@ class BigVGAN_NSynthDataset(Dataset):
             valid_files = valid_files[:max_samples]
 
         # Print Statistics
-        print("\n📊 Dataset Statistics (Strictly Acoustic Sources):")
+        print("\n📊 Dataset Statistics:")
         print(f"{'Instrument':<15} | {'Count':<10}")
         print("-" * 30)
         total = 0
