@@ -205,12 +205,27 @@ class BigVGAN_NSynthDataset(Dataset):
     def __getitem__(self, idx):
         path = self.files[idx]
 
-        # Get Label
+        # Get Info
         instrument_name, pitch_val = self._get_info_from_path(path)
         label = torch.tensor(self.label_map[instrument_name], dtype=torch.long)
-        pitch = torch.tensor(pitch_val, dtype=torch.long)  # MIDI pitch is 0-127
+        pitch = torch.tensor(pitch_val, dtype=torch.long)
 
-        # Get spectrogram
-        spec = self.vocoder.encode(path, self.T_target) # [1, 80, T]
+        # 1. Get raw spectrogram [1, 80, T]
+        # Range is approx [-11.5, 2.5]
+        spec = self.vocoder.encode(path, self.T_target)
+
+        # 2. Normalize to [-1, 1]
+        # We assume min=-12.0 and max=3.0 to be safe
+        min_db = -12.0
+        max_db = 3.0
+
+        # Clip to be safe
+        spec = torch.clamp(spec, min_db, max_db)
+
+        # Scale to [0, 1]
+        spec = (spec - min_db) / (max_db - min_db)
+
+        # Scale to [-1, 1]
+        spec = spec * 2.0 - 1.0
 
         return spec, label, pitch
