@@ -65,22 +65,56 @@ class NSynthDataset(Dataset):
         return parts[0]
 
     def _load_and_filter_files(self, data_path, max_samples):
-        """
-        Loads ALL files, then removes the ones we don't want.
-        """
-        # A. Find all wav files (check both possible folder structures)
         all_files = glob.glob(os.path.join(data_path, 'audio', '*.wav'))
+        if not all_files:
+            all_files = glob.glob(os.path.join(data_path, 'nsynth_valid', 'audio', '*.wav'))
 
-        # B. Filter: Only keep files that are in our label_map
         valid_files = []
-        for path in all_files:
-            instrument = self._get_instrument_from_path(path)
-            if instrument in self.label_map:
-                valid_files.append(path)
 
-        # C. Apply Max Samples (for debugging)
+        # Initialize Counter
+        counts = {name: 0 for name in self.label_map.keys()}
+
+        for p in all_files:
+            filename = os.path.basename(p)
+            parts = filename.split('_')
+
+            # --- 1. Identify Source (Acoustic/Electronic/Synthetic) ---
+            # Handle special case: 'synth_lead' has two words
+            if len(parts) > 1 and parts[0] == 'synth' and parts[1] == 'lead':
+                # e.g., synth_lead_synthetic_001...
+                # family = "synth_lead" (we skip these anyway for acoustic)
+                source = parts[2]
+            else:
+                # e.g., guitar_acoustic_001...
+                source = parts[1]
+
+            # --- 2. Filter: ONLY allow 'acoustic' ---
+            if source != 'acoustic':
+                continue
+
+            # --- 3. Identify Instrument Name ---
+            name, _ = self._get_info_from_path(p)
+
+            # --- 4. Add to list if it matches our selected families ---
+            if name in self.label_map:
+                valid_files.append(p)
+                counts[name] += 1
+
         if max_samples:
             valid_files = valid_files[:max_samples]
+
+        # Print Statistics
+        print("\n📊 Dataset Statistics (Strictly Acoustic Sources):")
+        print(f"{'Instrument':<15} | {'Count':<10}")
+        print("-" * 30)
+        total = 0
+        for name, count in counts.items():
+            # Only print instruments that actually have samples
+            if count > 0:
+                print(f"{name:<15} | {count:<10}")
+                total += count
+        print("-" * 30)
+        print(f"{'TOTAL':<15} | {total:<10}\n")
 
         return valid_files
 
