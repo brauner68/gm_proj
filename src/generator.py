@@ -185,5 +185,6 @@ class DiffusionGenerator:
         plt.title(title)
         plt.axis('off')
         plt.tight_layout()
+        plt.show()
         plt.savefig(os.path.join(save_dir, title + ".png"))
         plt.close()
