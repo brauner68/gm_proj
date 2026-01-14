@@ -142,10 +142,22 @@ class BigVGAN_Vocoder:
     @torch.inference_mode()
     def decode(self, mel_spectrogram):
         """
-        Input: Spectrogram Batch [Batch, 80, T]
+        Input: Spectrogram Batch [Batch, 80, T] (Normalized [-1, 1])
         Output: Audio Batch [Batch, 1, T_audio]
         """
+        # 1. Denormalize from [-1, 1] to [-12, 3]
+        min_db = -12.0
+        max_db = 3.0
+
         mel = mel_spectrogram.to(self.device)
+
+        # [-1, 1] -> [0, 1]
+        mel = (mel + 1.0) / 2.0
+
+        # [0, 1] -> [min_db, max_db]
+        mel = mel * (max_db - min_db) + min_db
+
+        # 2. Decode
         wav_gen = self.model(mel)
         return wav_gen.cpu()
 
