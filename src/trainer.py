@@ -6,6 +6,7 @@ from diffusers import DDPMScheduler
 from tqdm.auto import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
+import json
 
 # Import your modules
 from src.dataset import NSynthDataset, BigVGAN_NSynthDataset
@@ -20,6 +21,12 @@ class DiffusionTrainer:
 
         # 1. Setup Directories
         os.makedirs(args['output_dir'], exist_ok=True)
+
+        # Save Config
+        config_path = os.path.join(args['output_dir'], 'config.json')
+        with open(config_path, 'w') as f:
+            json.dump(args, f, indent=4)
+        print(f"📄 Config saved to {config_path}")
 
         # 2. Prepare Data
         self.dataset = BigVGAN_NSynthDataset(
