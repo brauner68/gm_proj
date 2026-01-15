@@ -33,6 +33,7 @@ class DiffusionTrainer:
             T_target=args['T_target'],
             max_samples=args['max_samples'],
             selected_families=args['selected_families'],
+            equalize_data=args['equalize_data'],
         )
 
         self.dataloader = DataLoader(
