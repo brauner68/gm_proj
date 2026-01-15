@@ -12,6 +12,7 @@ def get_config():
         'use_pitch': False,
         'T_target': 160,
         'max_samples': None,
+        'equalize_data': False,
         'selected_families': ['guitar', 'mallet', 'brass'],
         'epochs': 15,
         'batch_size': 32,

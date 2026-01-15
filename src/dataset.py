@@ -192,13 +192,13 @@ class NSynthDataset(Dataset):
 
 
 class BigVGAN_NSynthDataset(Dataset):
-    def __init__(self, data_path, T_target=160, max_samples=None, selected_families=None):
+    def __init__(self, data_path, T_target=160, max_samples=None, selected_families=None, equalize_data=False):
         """
         Specialized Dataset for BigVGAN (22kHz, 80 Mels, 256 Hop).
         """
         self.data_path = data_path
         self.label_map = self._create_label_map(selected_families)
-        self.files = self._load_and_filter_files(data_path, max_samples)
+        self.files = self._load_and_filter_files(data_path, max_samples, equalize=equalize_data)
 
         if len(self.files) == 0:
             raise RuntimeError(f"No files found in {data_path}")
