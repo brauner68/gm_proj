@@ -121,10 +121,10 @@ class DiffusionGenerator:
             t_batch = torch.full((total_samples * 2,), t, device=self.device, dtype=torch.long)
 
             label_batch = torch.cat([cond_labels, uncond_labels])
-            #pitch_batch = torch.cat([cond_pitches, uncond_pitches]) if use_pitch else None
+            pitch_batch = torch.cat([cond_pitches, cond_pitches]) if use_pitch else None
 
             # Predict
-            noise_pred = self.model(latent_input, t_batch, label_batch)
+            noise_pred = self.model(latent_input, t_batch, label_batch, pitch_batch)
 
             # Guidance
             noise_pred_cond, noise_pred_uncond = noise_pred.chunk(2)
